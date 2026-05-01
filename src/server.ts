@@ -3,14 +3,17 @@ import { Hono } from 'hono';
 import { env } from './lib/env.js';
 import { ensureIndexes } from './lib/mongo.js';
 import { errorHandler } from './middleware/errors.js';
+import { ai } from './routes/ai.js';
 import { auth as authRoutes } from './routes/auth.js';
 import { dashboard } from './routes/dashboard.js';
 import { health } from './routes/health.js';
 import { listings } from './routes/listings.js';
+import { me } from './routes/me.js';
 import { plants } from './routes/plants.js';
 import { scans } from './routes/scans.js';
 import { threads } from './routes/threads.js';
 import { uploads } from './routes/uploads.js';
+import { weather } from './routes/weather.js';
 import { wishlist } from './routes/wishlist.js';
 
 const app = new Hono();
@@ -19,12 +22,15 @@ app.onError(errorHandler);
 
 app.route('/api/health', health);
 app.route('/api/auth', authRoutes);
+app.route('/api/me', me);
 app.route('/api/plants', plants);
 app.route('/api/scans', scans);
 app.route('/api/uploads', uploads);
 app.route('/api/listings', listings);
 app.route('/api/wishlist', wishlist);
 app.route('/api/threads', threads);
+app.route('/api/weather', weather);
+app.route('/api/ai', ai);
 app.route('/api/dashboard', dashboard);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
