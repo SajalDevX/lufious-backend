@@ -2,6 +2,7 @@ import { ObjectId } from 'mongodb';
 import { getDb } from '../lib/mongo.js';
 import { identifyPlant } from '../lib/plantNet.js';
 import { ScanDoc } from '../schemas/Scan.js';
+import { notifyScanReady } from './notificationService.js';
 
 const SCANS = 'scans';
 const RETENTION = 50;
@@ -34,6 +35,9 @@ export async function createScan(
   const db = await getDb();
   await db.collection<ScanDoc>(SCANS).insertOne(doc);
   await pruneOld(userId);
+  void notifyScanReady(userId, doc._id, doc.commonName || doc.speciesName).catch(
+    (err) => console.error('[scan] notify failed', err)
+  );
   return doc;
 }
 

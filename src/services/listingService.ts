@@ -6,6 +6,10 @@ import {
   type ListingPatch,
   type ListingQuery
 } from '../schemas/Listing.js';
+import {
+  fanoutNewListing,
+  fanoutWishlistChange
+} from './notificationService.js';
 
 const LISTINGS = 'listings';
 
@@ -71,6 +75,9 @@ export async function createListing(
     status: 'active'
   });
   await db.collection<ListingDoc>(LISTINGS).insertOne(doc);
+  void fanoutNewListing(doc).catch((err) =>
+    console.error('[listing] fanout failed', err)
+  );
   return doc;
 }
 
@@ -80,6 +87,11 @@ export async function patchListing(
   patch: ListingPatch
 ): Promise<ListingDoc | null> {
   const db = await getDb();
+  const before = await db
+    .collection<ListingDoc>(LISTINGS)
+    .findOne({ _id: id, sellerId });
+  if (!before) return null;
+
   const $set: Record<string, unknown> = { updatedAt: Date.now() };
   for (const [k, v] of Object.entries(patch)) {
     if (v !== undefined) $set[k] = v;
@@ -91,7 +103,21 @@ export async function patchListing(
       { $set },
       { returnDocument: 'after' }
     );
-  return res ?? null;
+  if (!res) return null;
+
+  if (patch.status === 'sold' && before.status !== 'sold') {
+    void fanoutWishlistChange(res, 'sold').catch((err) =>
+      console.error('[listing] sold fanout failed', err)
+    );
+  } else if (
+    patch.price !== undefined &&
+    before.price > patch.price
+  ) {
+    void fanoutWishlistChange(res, 'price_drop').catch((err) =>
+      console.error('[listing] price-drop fanout failed', err)
+    );
+  }
+  return res;
 }
 
 export async function deleteListing(

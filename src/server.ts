@@ -5,7 +5,9 @@ import { ensureIndexes } from './lib/mongo.js';
 import { errorHandler } from './middleware/errors.js';
 import { ai } from './routes/ai.js';
 import { auth as authRoutes } from './routes/auth.js';
+import { cron } from './routes/cron.js';
 import { dashboard } from './routes/dashboard.js';
+import { devices } from './routes/devices.js';
 import { health } from './routes/health.js';
 import { listings } from './routes/listings.js';
 import { me } from './routes/me.js';
@@ -31,6 +33,8 @@ app.route('/api/wishlist', wishlist);
 app.route('/api/threads', threads);
 app.route('/api/weather', weather);
 app.route('/api/ai', ai);
+app.route('/api/devices', devices);
+app.route('/api/cron', cron);
 app.route('/api/dashboard', dashboard);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
