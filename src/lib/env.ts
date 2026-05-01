@@ -15,5 +15,19 @@ const Schema = z.object({
   CRON_SECRET: z.string().optional()
 });
 
-export const env = Schema.parse(process.env);
 export type Env = z.infer<typeof Schema>;
+
+let cached: Env | null = null;
+
+export function getEnv(): Env {
+  if (cached) return cached;
+  cached = Schema.parse(process.env);
+  return cached;
+}
+
+// Backwards-compat lazy proxy: `env.X` reads on access.
+export const env: Env = new Proxy({} as Env, {
+  get(_t, prop: string) {
+    return getEnv()[prop as keyof Env];
+  }
+});

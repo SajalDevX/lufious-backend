@@ -4,7 +4,9 @@ import { env } from './lib/env.js';
 import { ensureIndexes } from './lib/mongo.js';
 import { errorHandler } from './middleware/errors.js';
 import { auth as authRoutes } from './routes/auth.js';
+import { dashboard } from './routes/dashboard.js';
 import { health } from './routes/health.js';
+import { plants } from './routes/plants.js';
 
 const app = new Hono();
 
@@ -12,6 +14,8 @@ app.onError(errorHandler);
 
 app.route('/api/health', health);
 app.route('/api/auth', authRoutes);
+app.route('/api/plants', plants);
+app.route('/api/dashboard', dashboard);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 

@@ -1,25 +1,27 @@
 import { MongoClient, type Db } from 'mongodb';
-import { env } from './env.js';
+import { getEnv } from './env.js';
 
 declare global {
   // eslint-disable-next-line no-var
   var __mongoClient: MongoClient | undefined;
 }
 
-const client =
-  global.__mongoClient ??
-  new MongoClient(env.MONGODB_URI, { maxPoolSize: 5 });
-
-if (!global.__mongoClient) {
-  global.__mongoClient = client;
-}
-
 let connected: Promise<MongoClient> | null = null;
 
+function client(): MongoClient {
+  if (!global.__mongoClient) {
+    global.__mongoClient = new MongoClient(getEnv().MONGODB_URI, {
+      maxPoolSize: 5
+    });
+  }
+  return global.__mongoClient;
+}
+
 export async function getDb(): Promise<Db> {
-  if (!connected) connected = client.connect();
+  const c = client();
+  if (!connected) connected = c.connect();
   await connected;
-  return client.db(env.MONGODB_DB);
+  return c.db(getEnv().MONGODB_DB);
 }
 
 export async function ensureIndexes(): Promise<void> {
