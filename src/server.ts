@@ -9,6 +9,7 @@ import { health } from './routes/health.js';
 import { listings } from './routes/listings.js';
 import { plants } from './routes/plants.js';
 import { scans } from './routes/scans.js';
+import { threads } from './routes/threads.js';
 import { uploads } from './routes/uploads.js';
 import { wishlist } from './routes/wishlist.js';
 
@@ -23,6 +24,7 @@ app.route('/api/scans', scans);
 app.route('/api/uploads', uploads);
 app.route('/api/listings', listings);
 app.route('/api/wishlist', wishlist);
+app.route('/api/threads', threads);
 app.route('/api/dashboard', dashboard);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
