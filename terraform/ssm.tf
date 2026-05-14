@@ -57,12 +57,14 @@ resource "aws_ssm_parameter" "cron_secret" {
 }
 
 resource "aws_ssm_parameter" "upstash_redis_rest_url" {
+  count = var.upstash_redis_rest_url == "" ? 0 : 1
   name  = "${local.ssm_root}/UPSTASH_REDIS_REST_URL"
   type  = "String"
   value = var.upstash_redis_rest_url
 }
 
 resource "aws_ssm_parameter" "upstash_redis_rest_token" {
+  count = var.upstash_redis_rest_token == "" ? 0 : 1
   name  = "${local.ssm_root}/UPSTASH_REDIS_REST_TOKEN"
   type  = "SecureString"
   value = var.upstash_redis_rest_token
@@ -79,4 +81,11 @@ resource "aws_ssm_parameter" "aws_region" {
   name  = "${local.ssm_root}/AWS_REGION"
   type  = "String"
   value = var.region
+}
+
+resource "aws_ssm_parameter" "github_token" {
+  count = var.github_token == "" ? 0 : 1
+  name  = "${local.ssm_root}/GITHUB_TOKEN"
+  type  = "SecureString"
+  value = var.github_token
 }

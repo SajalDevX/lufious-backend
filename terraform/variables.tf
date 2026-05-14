@@ -110,3 +110,10 @@ variable "upstash_redis_rest_token" {
   default   = ""
   sensitive = true
 }
+
+variable "github_token" {
+  description = "GitHub PAT (fine-grained, contents:read on lufious-backend) for cloning a private repo. Stored in SSM SecureString."
+  type        = string
+  sensitive   = true
+  default     = ""
+}

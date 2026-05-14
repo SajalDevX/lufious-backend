@@ -41,8 +41,15 @@ fetch_env() {
 }
 fetch_env
 
-# Clone + build
-sudo -u lufious -H bash -c "cd /opt/lufious && git clone --depth 1 --branch ${branch} ${repo_url} app"
+# Clone + build (use PAT from .env if repo is private)
+GH_TOKEN=$(grep '^GITHUB_TOKEN=' /etc/lufious/.env | cut -d= -f2- || true)
+CLONE_URL='${repo_url}'
+if [ -n "$GH_TOKEN" ] && [[ "$CLONE_URL" == https://github.com/* ]]; then
+  CLONE_URL="https://x-access-token:$${GH_TOKEN}@$${CLONE_URL#https://}"
+fi
+sudo -u lufious -H bash -c "cd /opt/lufious && git clone --depth 1 --branch ${branch} '$CLONE_URL' app"
+# scrub token from .env (no longer needed at runtime)
+sed -i '/^GITHUB_TOKEN=/d' /etc/lufious/.env
 cd /opt/lufious/app
 sudo -u lufious -H bash -c "cd /opt/lufious/app && npm ci && npm run build"
 

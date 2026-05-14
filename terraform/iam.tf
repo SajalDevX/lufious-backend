@@ -36,6 +36,7 @@ data "aws_iam_policy_document" "backend_inline" {
     sid     = "SSMReadParams"
     actions = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"]
     resources = [
+      "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${local.name_prefix}",
       "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${local.name_prefix}/*"
     ]
   }
@@ -56,6 +57,12 @@ resource "aws_iam_role_policy" "backend_inline" {
   name   = "${local.name_prefix}-backend-policy"
   role   = aws_iam_role.backend_ec2.id
   policy = data.aws_iam_policy_document.backend_inline.json
+}
+
+# Lets us reach the instance via SSM Session Manager (no SSH ports needed)
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.backend_ec2.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 resource "aws_iam_instance_profile" "backend" {
