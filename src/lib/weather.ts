@@ -1,10 +1,19 @@
 import { getDb } from './mongo.js';
 import { getEnv } from './env.js';
 
+export type DailyForecast = {
+  dt: number;
+  tempMin: number | null;
+  tempMax: number | null;
+  description: string | null;
+  icon: string | null;
+};
+
 export type WeatherSummary = {
   temp: number | null;
   description: string | null;
   icon: string | null;
+  daily: DailyForecast[];
   alerts: Array<{ event: string; description: string; start: number; end: number }>;
   fetchedAt: number;
 };
@@ -46,6 +55,7 @@ async function fetchFromProvider(
     temp: null,
     description: null,
     icon: null,
+    daily: [],
     alerts: [],
     fetchedAt: Date.now()
   };
@@ -56,7 +66,7 @@ async function fetchFromProvider(
   url.searchParams.set('lon', String(lon));
   url.searchParams.set('appid', key);
   url.searchParams.set('units', 'metric');
-  url.searchParams.set('exclude', 'minutely,hourly,daily');
+  url.searchParams.set('exclude', 'minutely,hourly');
 
   try {
     const res = await fetch(url);
@@ -66,12 +76,24 @@ async function fetchFromProvider(
         temp?: number;
         weather?: Array<{ description?: string; icon?: string }>;
       };
+      daily?: Array<{
+        dt: number;
+        temp?: { min?: number; max?: number };
+        weather?: Array<{ description?: string; icon?: string }>;
+      }>;
       alerts?: Array<{ event: string; description: string; start: number; end: number }>;
     };
     return {
       temp: data.current?.temp ?? null,
       description: data.current?.weather?.[0]?.description ?? null,
       icon: data.current?.weather?.[0]?.icon ?? null,
+      daily: (data.daily ?? []).slice(0, 7).map((d) => ({
+        dt: d.dt * 1000,
+        tempMin: d.temp?.min ?? null,
+        tempMax: d.temp?.max ?? null,
+        description: d.weather?.[0]?.description ?? null,
+        icon: d.weather?.[0]?.icon ?? null
+      })),
       alerts: (data.alerts ?? []).map((a) => ({
         event: a.event,
         description: a.description,
