@@ -16,7 +16,7 @@ export async function createScan(
   const ident = await identifyPlant(photoUrl);
   const now = Date.now();
 
-  const baseDoc = ScanDoc.parse({
+  const doc = ScanDoc.parse({
     _id: id,
     userId,
     speciesName: ident.speciesName,
@@ -30,12 +30,22 @@ export async function createScan(
     timestamp: now
   });
 
-  const seed = await seedAnalysis(baseDoc);
-  const doc: ScanDoc = { ...baseDoc, messages: [seed] };
-
   const db = await getDb();
   await db.collection<ScanDoc>(SCANS).insertOne(doc);
   await pruneOld(userId);
+
+  // Vision seed runs in the background so POST /api/scans returns fast
+  // and the client can transition to the chat screen instantly. The chat
+  // screen polls getScan until messages[0] appears.
+  void seedAnalysis(doc)
+    .then((seed) =>
+      db.collection<ScanDoc>(SCANS).updateOne(
+        { _id: id, userId },
+        { $set: { messages: [seed] } }
+      )
+    )
+    .catch((err) => console.error('[scan] seedAnalysis failed', err));
+
   void notifyScanReady(userId, doc._id, doc.commonName || doc.speciesName).catch(
     (err) => console.error('[scan] notify failed', err)
   );
