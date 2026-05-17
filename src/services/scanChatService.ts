@@ -5,7 +5,8 @@ import { ScanDoc, type ScanMessage } from '../schemas/Scan.js';
 const SCANS = 'scans';
 const HISTORY_LIMIT = 20;
 const MESSAGE_CAP = 100;
-const VISION_MODEL = 'google/gemini-1.5-flash';
+const VISION_MODEL = 'google/gemini-2.5-flash-lite';
+const CHAT_MODEL = 'google/gemini-2.5-flash-lite';
 
 const FALLBACK_SEED =
   "I'm having trouble reaching my analysis service right now, but I can still help. " +
@@ -104,7 +105,11 @@ export async function appendUserMessage(
 
   let assistantContent = FALLBACK_REPLY;
   try {
-    assistantContent = await chat(llmMessages, { temperature: 0.55, maxTokens: 320 });
+    assistantContent = await chat(llmMessages, {
+      model: CHAT_MODEL,
+      temperature: 0.55,
+      maxTokens: 320
+    });
   } catch (err) {
     console.error('[scanChat] appendUserMessage chat failed', err);
   }
