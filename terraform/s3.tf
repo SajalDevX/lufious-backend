@@ -10,10 +10,31 @@ resource "aws_s3_bucket" "uploads" {
 resource "aws_s3_bucket_public_access_block" "uploads" {
   bucket = aws_s3_bucket.uploads.id
 
+  # ACLs stay blocked (we use bucket policy, not ACLs, for read access).
   block_public_acls       = true
-  block_public_policy     = true
   ignore_public_acls      = true
-  restrict_public_buckets = true
+  # Policy must be allowed so the public-read GET below can attach.
+  block_public_policy     = false
+  restrict_public_buckets = false
+}
+
+# Read-only public access for object URLs — required so PlantNet and
+# OpenRouter (vision) can fetch user-uploaded plant photos by URL.
+# Uploads still require a presigned PUT, so writes remain locked down.
+resource "aws_s3_bucket_policy" "uploads_public_read" {
+  bucket     = aws_s3_bucket.uploads.id
+  depends_on = [aws_s3_bucket_public_access_block.uploads]
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "PublicReadObjects"
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "s3:GetObject"
+      Resource  = "${aws_s3_bucket.uploads.arn}/*"
+    }]
+  })
 }
 
 resource "aws_s3_bucket_ownership_controls" "uploads" {
