@@ -21,7 +21,8 @@ export type WeatherSummary = {
   fetchedAt: number;
 };
 
-const ENDPOINT = 'https://api.openweathermap.org/data/3.0/onecall';
+const CURRENT_ENDPOINT = 'https://api.openweathermap.org/data/2.5/weather';
+const FORECAST_ENDPOINT = 'https://api.openweathermap.org/data/2.5/forecast';
 const TTL_MS = 60 * 60 * 1000;
 
 function bucketKey(lat: number, lon: number): string {
@@ -38,7 +39,7 @@ export async function getWeather(
   const key = bucketKey(lat, lon);
 
   const cached = await cache.findOne({ _id: key });
-  if (cached) return cached.payload;
+  if (cached && cached.payload.temp != null) return cached.payload;
 
   const summary = await fetchFromProvider(lat, lon);
   await cache.updateOne(
@@ -67,55 +68,98 @@ async function fetchFromProvider(
   };
   if (!key) return fallback;
 
-  const url = new URL(ENDPOINT);
-  url.searchParams.set('lat', String(lat));
-  url.searchParams.set('lon', String(lon));
-  url.searchParams.set('appid', key);
-  url.searchParams.set('units', 'metric');
-  url.searchParams.set('exclude', 'minutely,hourly');
-
   try {
-    const res = await fetch(url);
-    if (!res.ok) return fallback;
-    const data = (await res.json()) as {
-      current?: {
-        temp?: number;
-        humidity?: number;
-        wind_speed?: number;
-        uvi?: number;
-        weather?: Array<{ description?: string; icon?: string }>;
-      };
-      daily?: Array<{
-        dt: number;
-        temp?: { min?: number; max?: number };
-        weather?: Array<{ description?: string; icon?: string }>;
-      }>;
-      alerts?: Array<{ event: string; description: string; start: number; end: number }>;
-    };
-    const windMs = data.current?.wind_speed;
+    const [current, forecast] = await Promise.all([
+      fetchCurrent(lat, lon, key),
+      fetchForecastDaily(lat, lon, key)
+    ]);
     return {
-      temp: data.current?.temp ?? null,
-      description: data.current?.weather?.[0]?.description ?? null,
-      icon: data.current?.weather?.[0]?.icon ?? null,
-      humidity: data.current?.humidity ?? null,
-      windKph: windMs != null ? Math.round(windMs * 3.6) : null,
-      uvi: data.current?.uvi ?? null,
-      daily: (data.daily ?? []).slice(0, 7).map((d) => ({
-        dt: d.dt * 1000,
-        tempMin: d.temp?.min ?? null,
-        tempMax: d.temp?.max ?? null,
-        description: d.weather?.[0]?.description ?? null,
-        icon: d.weather?.[0]?.icon ?? null
-      })),
-      alerts: (data.alerts ?? []).map((a) => ({
-        event: a.event,
-        description: a.description,
-        start: a.start * 1000,
-        end: a.end * 1000
-      })),
+      ...current,
+      daily: forecast,
+      alerts: [],
       fetchedAt: Date.now()
     };
   } catch {
     return fallback;
   }
+}
+
+type CurrentSlice = Omit<WeatherSummary, 'daily' | 'alerts' | 'fetchedAt'>;
+
+async function fetchCurrent(lat: number, lon: number, key: string): Promise<CurrentSlice> {
+  const empty: CurrentSlice = {
+    temp: null, description: null, icon: null, humidity: null, windKph: null, uvi: null
+  };
+  const url = new URL(CURRENT_ENDPOINT);
+  url.searchParams.set('lat', String(lat));
+  url.searchParams.set('lon', String(lon));
+  url.searchParams.set('appid', key);
+  url.searchParams.set('units', 'metric');
+  const res = await fetch(url);
+  if (!res.ok) return empty;
+  const data = (await res.json()) as {
+    main?: { temp?: number; humidity?: number };
+    weather?: Array<{ description?: string; icon?: string }>;
+    wind?: { speed?: number };
+  };
+  const windMs = data.wind?.speed;
+  return {
+    temp: data.main?.temp ?? null,
+    description: data.weather?.[0]?.description ?? null,
+    icon: data.weather?.[0]?.icon ?? null,
+    humidity: data.main?.humidity ?? null,
+    windKph: windMs != null ? Math.round(windMs * 3.6) : null,
+    uvi: null
+  };
+}
+
+async function fetchForecastDaily(lat: number, lon: number, key: string): Promise<DailyForecast[]> {
+  const url = new URL(FORECAST_ENDPOINT);
+  url.searchParams.set('lat', String(lat));
+  url.searchParams.set('lon', String(lon));
+  url.searchParams.set('appid', key);
+  url.searchParams.set('units', 'metric');
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data = (await res.json()) as {
+    list?: Array<{
+      dt: number;
+      main?: { temp_min?: number; temp_max?: number };
+      weather?: Array<{ description?: string; icon?: string }>;
+    }>;
+  };
+  // Group 3-hour slots by local date, pick min/max + a representative midday entry.
+  const byDay = new Map<string, {
+    dt: number;
+    tempMin: number | null;
+    tempMax: number | null;
+    description: string | null;
+    icon: string | null;
+  }>();
+  for (const slot of data.list ?? []) {
+    const date = new Date(slot.dt * 1000);
+    const key = date.toISOString().slice(0, 10);
+    const existing = byDay.get(key);
+    const tMin = slot.main?.temp_min ?? null;
+    const tMax = slot.main?.temp_max ?? null;
+    if (!existing) {
+      byDay.set(key, {
+        dt: slot.dt * 1000,
+        tempMin: tMin,
+        tempMax: tMax,
+        description: slot.weather?.[0]?.description ?? null,
+        icon: slot.weather?.[0]?.icon ?? null
+      });
+    } else {
+      if (tMin != null) existing.tempMin = existing.tempMin == null ? tMin : Math.min(existing.tempMin, tMin);
+      if (tMax != null) existing.tempMax = existing.tempMax == null ? tMax : Math.max(existing.tempMax, tMax);
+      // Prefer noon slot for representative icon/description.
+      if (date.getUTCHours() === 12 || existing.description == null) {
+        existing.description = slot.weather?.[0]?.description ?? existing.description;
+        existing.icon = slot.weather?.[0]?.icon ?? existing.icon;
+        existing.dt = slot.dt * 1000;
+      }
+    }
+  }
+  return Array.from(byDay.values()).slice(0, 7);
 }
