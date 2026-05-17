@@ -13,15 +13,18 @@ export async function createScan(
   photoUrl: string
 ): Promise<ScanDoc> {
   const id = new ObjectId().toHexString();
-  const ident = await identifyPlant(photoUrl);
   const now = Date.now();
 
+  // Insert immediately with empty species so POST /api/scans returns in
+  // ~50ms. PlantNet identify + vision seed both run in the background
+  // and patch the doc once ready. The client transitions to the chat
+  // screen instantly and polls getScan for updates.
   const doc = ScanDoc.parse({
     _id: id,
     userId,
-    speciesName: ident.speciesName,
-    commonName: ident.commonName,
-    confidence: ident.confidence,
+    speciesName: '',
+    commonName: '',
+    confidence: 0,
     healthStatus: 'healthy',
     diagnosis: '',
     carePlan: '',
@@ -34,21 +37,35 @@ export async function createScan(
   await db.collection<ScanDoc>(SCANS).insertOne(doc);
   await pruneOld(userId);
 
-  // Vision seed runs in the background so POST /api/scans returns fast
-  // and the client can transition to the chat screen instantly. The chat
-  // screen polls getScan until messages[0] appears.
-  void seedAnalysis(doc)
-    .then((seed) =>
-      db.collection<ScanDoc>(SCANS).updateOne(
+  // Background: identify + seed analysis, then notification.
+  void (async () => {
+    try {
+      const ident = await identifyPlant(photoUrl);
+      const idPatch = {
+        speciesName: ident.speciesName,
+        commonName: ident.commonName,
+        confidence: ident.confidence
+      };
+      await db.collection<ScanDoc>(SCANS).updateOne(
+        { _id: id, userId },
+        { $set: idPatch }
+      );
+      const enriched: ScanDoc = { ...doc, ...idPatch };
+      const seed = await seedAnalysis(enriched);
+      await db.collection<ScanDoc>(SCANS).updateOne(
         { _id: id, userId },
         { $set: { messages: [seed] } }
-      )
-    )
-    .catch((err) => console.error('[scan] seedAnalysis failed', err));
+      );
+      void notifyScanReady(
+        userId,
+        id,
+        enriched.commonName || enriched.speciesName
+      ).catch((err) => console.error('[scan] notify failed', err));
+    } catch (err) {
+      console.error('[scan] background pipeline failed', err);
+    }
+  })();
 
-  void notifyScanReady(userId, doc._id, doc.commonName || doc.speciesName).catch(
-    (err) => console.error('[scan] notify failed', err)
-  );
   return doc;
 }
 
