@@ -5,7 +5,7 @@ import { ScanDoc, type ScanMessage } from '../schemas/Scan.js';
 const SCANS = 'scans';
 const HISTORY_LIMIT = 20;
 const MESSAGE_CAP = 100;
-const VISION_MODEL = 'google/gemini-2.0-flash-exp:free';
+const VISION_MODEL = 'google/gemini-flash-1.5';
 
 const FALLBACK_SEED =
   "I'm having trouble reaching my analysis service right now, but I can still help. " +
