@@ -57,10 +57,13 @@ export async function mintSignedUpload(
   const id = refId ?? `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const key = objectKey(uid, kind, id);
 
+  // Omit ContentType from the signed command — including it forces the client
+  // to send an exact matching Content-Type header. We keep the parameter for
+  // API back-compat but no longer bake it into the signature.
+  void contentType;
   const cmd = new PutObjectCommand({
     Bucket: env.S3_BUCKET,
-    Key: key,
-    ContentType: contentType
+    Key: key
   });
   const uploadUrl = await getSignedUrl(s3(), cmd, { expiresIn: FIFTEEN_MIN_S });
   const expiresAt = Date.now() + FIFTEEN_MIN_S * 1000;
