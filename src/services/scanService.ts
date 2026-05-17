@@ -3,6 +3,7 @@ import { getDb } from '../lib/mongo.js';
 import { identifyPlant } from '../lib/plantNet.js';
 import { ScanDoc } from '../schemas/Scan.js';
 import { notifyScanReady } from './notificationService.js';
+import { seedAnalysis } from './scanChatService.js';
 
 const SCANS = 'scans';
 const RETENTION = 50;
@@ -15,22 +16,22 @@ export async function createScan(
   const ident = await identifyPlant(photoUrl);
   const now = Date.now();
 
-  const doc = ScanDoc.parse({
+  const baseDoc = ScanDoc.parse({
     _id: id,
     userId,
     speciesName: ident.speciesName,
     commonName: ident.commonName,
     confidence: ident.confidence,
     healthStatus: 'healthy',
-    diagnosis:
-      ident.confidence < 0.4
-        ? 'Low-confidence match. Try a closer photo of a single leaf in good light.'
-        : `Identified as ${ident.commonName} (${ident.speciesName}).`,
-    carePlan:
-      'Water when the top inch of soil is dry. Bright indirect light. Mist for humidity.',
+    diagnosis: '',
+    carePlan: '',
     photoUrl,
+    messages: [],
     timestamp: now
   });
+
+  const seed = await seedAnalysis(baseDoc);
+  const doc: ScanDoc = { ...baseDoc, messages: [seed] };
 
   const db = await getDb();
   await db.collection<ScanDoc>(SCANS).insertOne(doc);

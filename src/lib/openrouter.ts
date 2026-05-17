@@ -2,11 +2,18 @@ import { getEnv } from './env.js';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
-export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+export type TextPart = { type: 'text'; text: string };
+export type ImagePart = { type: 'image_url'; image_url: { url: string } };
+export type ContentPart = TextPart | ImagePart;
+
+export type ChatMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string | ContentPart[];
+};
 
 export async function chat(
   messages: ChatMessage[],
-  opts: { temperature?: number; maxTokens?: number } = {}
+  opts: { temperature?: number; maxTokens?: number; model?: string } = {}
 ): Promise<string> {
   const env = getEnv();
   const key = env.OPENROUTER_API_KEY;
@@ -23,7 +30,7 @@ export async function chat(
       'X-Title': 'Lufious'
     },
     body: JSON.stringify({
-      model: env.OPENROUTER_MODEL,
+      model: opts.model ?? env.OPENROUTER_MODEL,
       messages,
       temperature: opts.temperature ?? 0.6,
       max_tokens: opts.maxTokens ?? 220
