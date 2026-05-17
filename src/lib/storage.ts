@@ -19,6 +19,11 @@ function s3(): S3Client {
   const env = getEnv();
   cachedClient = new S3Client({
     region: env.AWS_REGION,
+    // Restore pre-3.700 behavior: do NOT auto-inject CRC32 checksum headers
+    // into presigned PUT URLs. The client uploading the bytes can't satisfy
+    // the signed checksum, so S3 rejects the PUT with 400.
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
     ...(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
       ? {
           credentials: {
