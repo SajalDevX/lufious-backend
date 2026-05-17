@@ -13,6 +13,9 @@ export type WeatherSummary = {
   temp: number | null;
   description: string | null;
   icon: string | null;
+  humidity: number | null;
+  windKph: number | null;
+  uvi: number | null;
   daily: DailyForecast[];
   alerts: Array<{ event: string; description: string; start: number; end: number }>;
   fetchedAt: number;
@@ -55,6 +58,9 @@ async function fetchFromProvider(
     temp: null,
     description: null,
     icon: null,
+    humidity: null,
+    windKph: null,
+    uvi: null,
     daily: [],
     alerts: [],
     fetchedAt: Date.now()
@@ -74,6 +80,9 @@ async function fetchFromProvider(
     const data = (await res.json()) as {
       current?: {
         temp?: number;
+        humidity?: number;
+        wind_speed?: number;
+        uvi?: number;
         weather?: Array<{ description?: string; icon?: string }>;
       };
       daily?: Array<{
@@ -83,10 +92,14 @@ async function fetchFromProvider(
       }>;
       alerts?: Array<{ event: string; description: string; start: number; end: number }>;
     };
+    const windMs = data.current?.wind_speed;
     return {
       temp: data.current?.temp ?? null,
       description: data.current?.weather?.[0]?.description ?? null,
       icon: data.current?.weather?.[0]?.icon ?? null,
+      humidity: data.current?.humidity ?? null,
+      windKph: windMs != null ? Math.round(windMs * 3.6) : null,
+      uvi: data.current?.uvi ?? null,
       daily: (data.daily ?? []).slice(0, 7).map((d) => ({
         dt: d.dt * 1000,
         tempMin: d.temp?.min ?? null,
