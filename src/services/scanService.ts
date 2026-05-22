@@ -3,13 +3,15 @@ import { getDb } from '../lib/mongo.js';
 import { ScanDoc } from '../schemas/Scan.js';
 import { notifyScanReady } from './notificationService.js';
 import { seedAnalysis } from './scanChatService.js';
+import type { AgentKey } from '../lib/agents/types.js';
 
 const SCANS = 'scans';
 const RETENTION = 50;
 
 export async function createScan(
   userId: string,
-  photoUrl: string
+  photoUrl: string,
+  agentKeys?: AgentKey[]
 ): Promise<ScanDoc> {
   const id = new ObjectId().toHexString();
   const now = Date.now();
@@ -38,7 +40,7 @@ export async function createScan(
 
   void (async () => {
     try {
-      const seedMsgs = await seedAnalysis(doc);
+      const seedMsgs = await seedAnalysis(doc, agentKeys);
       const agentsReady = seedMsgs
         .map((m) => m.agentKey)
         .filter((k): k is NonNullable<typeof k> => Boolean(k));

@@ -3,6 +3,7 @@ import { runInitialAnalysis, runFollowup, type PriorMessage } from '../lib/agent
 import { resolveResponders, stripMentions } from '../lib/agents/router.js';
 import { getAgent } from '../lib/agents/definitions.js';
 import { ScanDoc, type ScanMessage } from '../schemas/Scan.js';
+import type { AgentKey } from '../lib/agents/types.js';
 
 const SCANS = 'scans';
 const HISTORY_LIMIT = 40;
@@ -19,8 +20,11 @@ function prefix(agentKey: ScanMessage['agentKey'], content: string): string {
  * each response as a separate assistant message tagged with its agentKey.
  * Returns the resulting messages so caller can write them in one update.
  */
-export async function seedAnalysis(scan: ScanDoc): Promise<ScanMessage[]> {
-  const replies = await runInitialAnalysis(scan.photoUrl);
+export async function seedAnalysis(
+  scan: ScanDoc,
+  agentKeys?: AgentKey[]
+): Promise<ScanMessage[]> {
+  const replies = await runInitialAnalysis(scan.photoUrl, agentKeys);
   const now = Date.now();
   return replies.map<ScanMessage>((r, i) => ({
     role: 'assistant',

@@ -104,11 +104,15 @@ async function runOne(
   }
 }
 
-/** Initial fan-out: run all 4 agents in parallel against the photo. */
+/** Initial fan-out: run the chosen agents in parallel against the photo. */
 export async function runInitialAnalysis(
-  photoUrl: string | null | undefined
+  photoUrl: string | null | undefined,
+  agentKeys?: AgentKey[]
 ): Promise<AgentReply[]> {
-  const tasks = listAgents().map((a) => runOne(a, [], '', photoUrl, true));
+  const defs = agentKeys && agentKeys.length > 0
+    ? agentKeys.map((k) => getAgent(k))
+    : listAgents();
+  const tasks = defs.map((a) => runOne(a, [], '', photoUrl, true));
   return Promise.all(tasks);
 }
 
