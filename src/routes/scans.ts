@@ -30,7 +30,7 @@ scans.get('/', async (c) => {
 
 scans.post('/', async (c) => {
   const body = ScanCreate.parse(await c.req.json());
-  const scan = await createScan(c.get('uid'), body.photoUrl);
+  const scan = await createScan(c.get('uid'), body.photoUrl, body.agents);
   return c.json(scan, 201);
 });
 

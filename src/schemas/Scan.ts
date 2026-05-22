@@ -33,7 +33,9 @@ export const ScanDoc = z.object({
 export type ScanDoc = z.infer<typeof ScanDoc>;
 
 export const ScanCreate = z.object({
-  photoUrl: z.string().url()
+  photoUrl: z.string().url(),
+  // Optional filter: only run these agents on the initial fan-out. Omit/empty = all four.
+  agents: z.array(AgentKeyEnum).min(1).max(4).optional()
 });
 export type ScanCreate = z.infer<typeof ScanCreate>;
 
