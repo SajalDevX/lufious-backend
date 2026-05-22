@@ -1,6 +1,5 @@
 import { ObjectId } from 'mongodb';
 import { getDb } from '../lib/mongo.js';
-import { identifyPlant } from '../lib/plantNet.js';
 import { ScanDoc } from '../schemas/Scan.js';
 import { notifyScanReady } from './notificationService.js';
 import { seedAnalysis } from './scanChatService.js';
@@ -15,10 +14,9 @@ export async function createScan(
   const id = new ObjectId().toHexString();
   const now = Date.now();
 
-  // Insert immediately with empty species so POST /api/scans returns in
-  // ~50ms. PlantNet identify + vision seed both run in the background
-  // and patch the doc once ready. The client transitions to the chat
-  // screen instantly and polls getScan for updates.
+  // Insert immediately so POST /api/scans returns fast. The 4-agent fan-out
+  // runs in the background and patches the doc with messages as they land.
+  // The client transitions to the chat screen and polls getScan for updates.
   const doc = ScanDoc.parse({
     _id: id,
     userId,
@@ -30,6 +28,7 @@ export async function createScan(
     carePlan: '',
     photoUrl,
     messages: [],
+    agentsReady: [],
     timestamp: now
   });
 
@@ -37,30 +36,19 @@ export async function createScan(
   await db.collection<ScanDoc>(SCANS).insertOne(doc);
   await pruneOld(userId);
 
-  // Background: identify + seed analysis, then notification.
   void (async () => {
     try {
-      const ident = await identifyPlant(photoUrl);
-      const idPatch = {
-        speciesName: ident.speciesName,
-        commonName: ident.commonName,
-        confidence: ident.confidence
-      };
+      const seedMsgs = await seedAnalysis(doc);
+      const agentsReady = seedMsgs
+        .map((m) => m.agentKey)
+        .filter((k): k is NonNullable<typeof k> => Boolean(k));
       await db.collection<ScanDoc>(SCANS).updateOne(
         { _id: id, userId },
-        { $set: idPatch }
+        { $set: { messages: seedMsgs, agentsReady } }
       );
-      const enriched: ScanDoc = { ...doc, ...idPatch };
-      const seed = await seedAnalysis(enriched);
-      await db.collection<ScanDoc>(SCANS).updateOne(
-        { _id: id, userId },
-        { $set: { messages: [seed] } }
+      void notifyScanReady(userId, id, '').catch((err) =>
+        console.error('[scan] notify failed', err)
       );
-      void notifyScanReady(
-        userId,
-        id,
-        enriched.commonName || enriched.speciesName
-      ).catch((err) => console.error('[scan] notify failed', err));
     } catch (err) {
       console.error('[scan] background pipeline failed', err);
     }

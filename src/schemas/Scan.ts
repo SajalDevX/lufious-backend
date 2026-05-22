@@ -1,8 +1,15 @@
 import { z } from 'zod';
 
+export const AgentKeyEnum = z.enum(['soil', 'disease', 'solar', 'care']);
+export type AgentKeyT = z.infer<typeof AgentKeyEnum>;
+
 export const ScanMessage = z.object({
   role: z.enum(['assistant', 'user']),
   content: z.string().min(1).max(4000),
+  // Present on assistant messages routed through a specific agent.
+  agentKey: AgentKeyEnum.optional(),
+  // On user messages: which agents were addressed via @mention (or default).
+  mentions: z.array(AgentKeyEnum).optional(),
   createdAt: z.number()
 });
 export type ScanMessage = z.infer<typeof ScanMessage>;
@@ -19,6 +26,8 @@ export const ScanDoc = z.object({
   photoUrl: z.string().url().optional().nullable(),
   messages: z.array(ScanMessage).default([]),
   aiSummary: z.string().optional(),
+  // Tracks which agents have produced an initial analysis (so client knows progress).
+  agentsReady: z.array(AgentKeyEnum).default([]),
   timestamp: z.number()
 });
 export type ScanDoc = z.infer<typeof ScanDoc>;
